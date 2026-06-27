@@ -1,0 +1,2 @@
+# Online-Cake-Shop-Website
+A premium Full-Stack Online Cake Shop system built with React 19, Node.js, Express, and MongoDB. Features role-based access for Customers, Admins, and Delivery Drivers, including OTP verification, Google OAuth, and comprehensive management dashboards. 
