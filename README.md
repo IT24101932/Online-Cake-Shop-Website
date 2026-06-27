@@ -130,3 +130,8 @@ npm run dev
 If you find this project helpful:
 - ⭐ **Star** this repository
 - 🍴 **Fork** this repository
+
+---
+
+## 📄 License
+This project is developed for **academic and educational purposes**.
