@@ -1,0 +1,168 @@
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { uploadFile } from '../../utils/meadiaUpload';
+
+export default function AdminCakeAddPage() {
+    const [formData, setFormData] = useState({
+        name: '',
+        altName: '',
+        description: '',
+        price: '',
+        category: 'Artisan',
+        flavor: '',
+        weight: '',
+        quantity: '',
+        manufactureDate: '',
+        expiryDate: '',
+    });
+    const [imageFile, setImageFile] = useState(null);
+    const [preview, setPreview] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const navigate = useNavigate();
+
+    const handlePriceChange = (e) => {
+        const value = e.target.value;
+        const cleaned = value.replace(/[^\d.]/g, '');
+        const [integerPart, ...decimalParts] = cleaned.split('.');
+        const decimalPart = decimalParts.join('').slice(0, 2);
+        const nextValue = decimalParts.length > 0 ? `${integerPart}.${decimalPart}` : integerPart;
+
+        setFormData({ ...formData, price: nextValue });
+    };
+
+    const handleQuantityChange = (e) => {
+        const value = e.target.value;
+        const cleaned = value.replace(/\D/g, '');
+        setFormData({ ...formData, quantity: cleaned });
+    };
+
+    const handleWeightChange = (e) => {
+        const value = e.target.value;
+        const cleaned = value.replace(/-/g, '');
+        setFormData({ ...formData, weight: cleaned });
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setImageFile(file);
+            setPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const parseDateInput = (value) => {
+        if (!value) return null;
+
+        const parsed = new Date(`${value}T00:00:00`);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!imageFile) return toast.error('Please upload an image.');
+
+        const parsedPrice = Number(formData.price);
+        const parsedQuantity = Number(formData.quantity);
+        const parsedWeight = parseFloat(formData.weight);
+
+        if (!formData.price || Number.isNaN(parsedPrice) || parsedPrice < 0) {
+            return toast.error('Price must be 0 or greater.');
+        }
+
+        if (!formData.quantity || !Number.isInteger(parsedQuantity) || parsedQuantity < 0) {
+            return toast.error('Quantity must be a whole number 0 or greater.');
+        }
+
+        if (!formData.weight || formData.weight.includes('-') || Number.isNaN(parsedWeight) || parsedWeight <= 0) {
+            return toast.error('Weight must be a positive value (no minus).');
+        }
+
+        const manufactureDate = parseDateInput(formData.manufactureDate);
+        const expiryDate = parseDateInput(formData.expiryDate);
+
+        if (manufactureDate && expiryDate && expiryDate < manufactureDate) {
+            return toast.error('Expiry Date cannot be before Manufacture Date.');
+        }
+
+        setIsLoading(true);
+        const toastId = toast.loading('Creating your masterpiece...');
+
+        try {
+            const imageUrl = await uploadFile(imageFile);
+            
+            // Prepare data to match backend schema
+            const payload = {
+                ...formData,
+                price: parsedPrice,
+                quantity: parsedQuantity,
+                manufactureDate: formData.manufactureDate || undefined,
+                expireDate: formData.expiryDate || undefined,
+                Image: [imageUrl], // Schema expects an array
+            };
+
+            await axios.post(`${import.meta.env.VITE_BACKEND_URL}/cakes`, payload, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+
+            toast.success('Cake added successfully!', { id: toastId });
+            navigate('/admin/cakes');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to add cake.', { id: toastId });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <div className="max-w-4xl mx-auto p-6 bg-white rounded-xl shadow-lg border border-gray-100">
+            <h1 className="text-2xl font-bold text-gray-800 mb-6 italic">Add New Creation</h1>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {/* Image Upload Area */}
+                <div className="md:col-span-2 border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center bg-gray-50 hover:bg-gray-100 transition-all">
+                    {preview ? <img src={preview} className="h-40 w-40 object-cover rounded-full shadow-md mb-3 border-2 border-blue-400" /> : <div className="h-20 w-20 bg-gray-200 rounded-full mb-3" />}
+                    <input type="file" onChange={handleImageChange} className="text-sm cursor-pointer" accept="image/*" />
+                </div>
+
+                <input name="name" placeholder="Cake Name" onChange={handleChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" required />
+                <input name="altName" placeholder="Tagline (e.g. For Weddings)" onChange={handleChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" required />
+                <input name="price" type="text" inputMode="decimal" value={formData.price} placeholder="Price (LKR)" onChange={handlePriceChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" required />
+                <select name="category" onChange={handleChange} className="p-3 border rounded-lg outline-none">
+                    <option>Artisan</option>
+                    <option>Wedding</option>
+                    <option>Luxury</option>
+                </select>
+                <input name="flavor" placeholder="Flavor (e.g. Chocolate)" onChange={handleChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" required />
+                <input name="weight" value={formData.weight} placeholder="Weight (e.g. 1kg)" onChange={handleWeightChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" required />
+                <input name="quantity" type="text" inputMode="numeric" value={formData.quantity} placeholder="Stock Quantity" onChange={handleQuantityChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" required />
+                <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-500 ml-1">Manufacture Date</label>
+                    <input name="manufactureDate" type="date" value={formData.manufactureDate} onChange={handleChange} className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none" />
+                </div>
+
+                <div className="flex flex-col">
+                    <label className="text-xs font-bold text-gray-500 ml-1">Expiry Date</label>
+                    <input
+                        name="expiryDate"
+                        type="date"
+                        value={formData.expiryDate}
+                        min={formData.manufactureDate || undefined}
+                        onChange={handleChange}
+                        className="p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 outline-none"
+                    />
+                </div>
+                <textarea name="description" placeholder="Short Description..." onChange={handleChange} className="p-3 border rounded-lg md:col-span-2 outline-none h-24" required />
+
+                <button type="submit" disabled={isLoading} className="md:col-span-2 bg-gray-900 text-white p-4 rounded-lg font-semibold hover:bg-blue-600 transition-all disabled:opacity-50">
+                    {isLoading ? "Processing..." : "Save Cake"}
+                </button>
+            </form>
+        </div>
+    );
+}
